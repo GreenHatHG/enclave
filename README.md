@@ -90,6 +90,15 @@ enclave run -c copilot-sandbox.toml copilot
 enclave run -c my.toml -- claude -p "hello"
 ```
 
+Use `--allow-write` (or `-w`) to make additional directories writable for this invocation only. The flag is repeatable and does not modify any configuration file:
+
+```bash
+# Make ~/Projects/foo and ~/Projects/bar writable for this run
+enclave run -w ~/Projects/foo -w ~/Projects/bar -- claude
+```
+
+The extra directories only take effect when the built-in default sandbox profile is used (they are ignored if a custom `sandbox_profile` is configured). Note that the enclave config files themselves (`~/.config/enclave/config.toml`, `./enclave.toml`, `./enclave.local.toml`) are never writable, even if listed with `-w`.
+
 ### Useful Shell Aliases
 
 For frequently used commands, shell aliases can reduce repetition. The following are examples from the author's personal setup:
@@ -176,6 +185,7 @@ unboxexec_allowed_commands = [
 |-----|------|-------------|
 | `sandbox_profile` | String | The sandbox-exec profile content. If not set, a built-in default profile is used. Use TOML multiline literal strings (`'''`) for readability. |
 | `unboxexec_allowed_commands` | Array of strings | Regex patterns that define which commands are allowed to execute via `unboxexec`. The command and arguments are joined with spaces and matched against each pattern. If any pattern matches, the command is permitted. See [Sandbox-External Command Execution](#sandbox-external-command-execution). |
+| `sandbox_allow_write` | Array of strings | Additional directories to make writable when using the built-in default sandbox profile. Can also be set per invocation with the `--allow-write` (`-w`) flag, which takes precedence. Ignored when a custom `sandbox_profile` is set. |
 
 ### Sandbox Profile Parameters
 

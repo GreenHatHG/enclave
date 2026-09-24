@@ -61,6 +61,26 @@ const DefaultProfile = `(version 1)
 )
 `
 
+// extraWriteMarker marks the position in DefaultProfile where extra
+// writable path entries are inserted.
+const extraWriteMarker = "    ;; devices\n"
+
+// buildDefaultProfile returns the DefaultProfile with allowWrite paths
+// inserted into the "allow file-write*" block as EXTRA_WRITE_N params.
+// If allowWrite is empty, DefaultProfile is returned unchanged.
+func buildDefaultProfile(allowWrite []string) string {
+	if len(allowWrite) == 0 {
+		return DefaultProfile
+	}
+
+	var b strings.Builder
+	for i := range allowWrite {
+		fmt.Fprintf(&b, "    (subpath (param %q))\n", fmt.Sprintf("EXTRA_WRITE_%d", i))
+	}
+
+	return strings.Replace(DefaultProfile, extraWriteMarker, b.String()+extraWriteMarker, 1)
+}
+
 // CommentedDefaultProfile returns the DefaultProfile with each line prefixed by "# ".
 // Empty lines are commented as "#" (without trailing space).
 func CommentedDefaultProfile() string {
@@ -79,10 +99,14 @@ func CommentedDefaultProfile() string {
 // its path and a cleanup function.
 // If profileContent is non-empty, it is used as the profile.
 // Otherwise, the built-in default profile is used.
-func BuildProfile(profileContent string) (profilePath string, cleanup func(), err error) {
+// allowWrite paths are applied only with the default profile: for each path,
+// a "(subpath (param "EXTRA_WRITE_N"))" line is inserted into the
+// "allow file-write*" block; the caller must pass matching "-D EXTRA_WRITE_N=<path>"
+// parameters to sandbox-exec.
+func BuildProfile(profileContent string, allowWrite []string) (profilePath string, cleanup func(), err error) {
 	content := profileContent
 	if content == "" {
-		content = DefaultProfile
+		content = buildDefaultProfile(allowWrite)
 	}
 
 	// Write to temporary file

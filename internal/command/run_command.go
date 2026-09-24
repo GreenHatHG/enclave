@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 
 	"github.com/kohkimakimoto/enclave/v3/internal/config"
@@ -24,6 +25,11 @@ func RunCommand() *cli.Command {
 				Name:    "config",
 				Aliases: []string{"c"},
 				Usage:   "Path to a config file (overrides automatic config resolution)",
+			},
+			&cli.StringSliceFlag{
+				Name:    "allow-write",
+				Aliases: []string{"w"},
+				Usage:   "Additional writable directory (repeatable, only applies when using the default sandbox profile)",
 			},
 		},
 		Action: runAction,
@@ -54,6 +60,20 @@ func runAction(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("no command specified\n\nUsage: enclave run [options] [--] <command> [args...]")
 	}
 
+	// CLI flag takes precedence over the config file value
+	if writePaths := cmd.StringSlice("allow-write"); len(writePaths) > 0 {
+		cfg.SandboxAllowWrite = writePaths
+	}
+
+	// Normalize allow-write paths to absolute paths
+	for i, p := range cfg.SandboxAllowWrite {
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			return fmt.Errorf("invalid --allow-write path %q: %w", p, err)
+		}
+		cfg.SandboxAllowWrite[i] = abs
+	}
+
 	return runSandboxed(ctx, args, cfg)
 }
 
@@ -65,7 +85,7 @@ func runSandboxed(ctx context.Context, args []string, cfg *config.Config) error 
 		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
 
-	profilePath, cleanup, err := sandbox.BuildProfile(cfg.SandboxProfile)
+	profilePath, cleanup, err := sandbox.BuildProfile(cfg.SandboxProfile, cfg.SandboxAllowWrite)
 	if err != nil {
 		return err
 	}
@@ -100,8 +120,13 @@ func runSandboxed(ctx context.Context, args []string, cfg *config.Config) error 
 	sandboxExecArgs := []string{
 		"-D", "WORKDIR=" + wd,
 		"-D", "HOME=" + home,
-		"-f", profilePath,
 	}
+	for i, p := range cfg.SandboxAllowWrite {
+		sandboxExecArgs = append(sandboxExecArgs, "-D", fmt.Sprintf("EXTRA_WRITE_%d=%s", i, p))
+	}
+	sandboxExecArgs = append(sandboxExecArgs,
+		"-f", profilePath,
+	)
 	sandboxExecArgs = append(sandboxExecArgs, args...)
 
 	// Run sandbox-exec as a child process

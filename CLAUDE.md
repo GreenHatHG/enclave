@@ -49,6 +49,11 @@ Runs a background daemon (goroutine) to support sandbox-bypass execution.
 # Override claude binary path (optional).
 # claude_bin = "/path/to/claude"
 
+[sandbox]
+# Additional writable directories (applies only when the built-in default
+# profile is used). Can also be set per invocation with enclave run -w <dir>.
+# allow_write = ["~/Projects/foo", "~/Projects/bar"]
+
 [unboxexec]
 # Regex patterns for allowed commands.
 # The command + args joined by spaces is matched against each pattern.

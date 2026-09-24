@@ -24,7 +24,7 @@ func profileAction(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
-	profilePath, cleanup, err := sandbox.BuildProfile(cfg.SandboxProfile)
+	profilePath, cleanup, err := sandbox.BuildProfile(cfg.SandboxProfile, cfg.SandboxAllowWrite)
 	if err != nil {
 		return err
 	}

@@ -16,6 +16,9 @@ type Config struct {
 	SandboxProfile string `toml:"sandbox_profile"`
 	// UnboxexecAllowedCommands is a list of regex patterns for allowed commands.
 	UnboxexecAllowedCommands []string `toml:"unboxexec_allowed_commands"`
+	// SandboxAllowWrite is a list of extra writable directory paths,
+	// applied only when the built-in default profile is used.
+	SandboxAllowWrite []string `toml:"sandbox_allow_write"`
 }
 
 // mergeInto merges non-zero fields of src into dst.
@@ -25,6 +28,9 @@ func mergeInto(dst, src *Config) {
 	}
 	if len(src.UnboxexecAllowedCommands) > 0 {
 		dst.UnboxexecAllowedCommands = src.UnboxexecAllowedCommands
+	}
+	if len(src.SandboxAllowWrite) > 0 {
+		dst.SandboxAllowWrite = src.SandboxAllowWrite
 	}
 }
 
