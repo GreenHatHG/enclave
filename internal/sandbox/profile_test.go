@@ -41,9 +41,9 @@ func TestBuildDefaultProfile_WithAllowWrite(t *testing.T) {
 	}
 }
 
-func TestBuildProfile_CustomProfileIgnoresAllowWrite(t *testing.T) {
+func TestBuildProfile_CustomProfileAppendsAllowWrite(t *testing.T) {
 	custom := "(version 1)\n(allow default)\n"
-	path, cleanup, err := BuildProfile(custom, []string{"/foo"})
+	path, cleanup, err := BuildProfile(custom, []string{"/foo"}, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,13 +53,17 @@ func TestBuildProfile_CustomProfileIgnoresAllowWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(data) != custom {
-		t.Errorf("custom profile should be used as-is, got %q", string(data))
+	got := string(data)
+	if !strings.HasPrefix(got, custom) {
+		t.Errorf("custom profile should be preserved, got %q", got)
+	}
+	if !strings.Contains(got, "(allow file-write*\n    (subpath (param \"EXTRA_WRITE_0\"))\n)") {
+		t.Errorf("expected appended extra write block, got %q", got)
 	}
 }
 
 func TestBuildProfile_DefaultWithAllowWrite(t *testing.T) {
-	path, cleanup, err := BuildProfile("", []string{"/tmp/extra"})
+	path, cleanup, err := BuildProfile("", []string{"/tmp/extra"}, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

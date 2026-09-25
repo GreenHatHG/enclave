@@ -85,14 +85,14 @@ func runSandboxed(ctx context.Context, args []string, cfg *config.Config) error 
 		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
 
-	profilePath, cleanup, err := sandbox.BuildProfile(cfg.SandboxProfile, cfg.SandboxAllowWrite)
+	wd, _ := os.Getwd()
+	home, _ := os.UserHomeDir()
+
+	profilePath, cleanup, err := sandbox.BuildProfile(cfg.SandboxProfile, cfg.SandboxAllowWrite, wd, home)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
-
-	wd, _ := os.Getwd()
-	home, _ := os.UserHomeDir()
 
 	// Compile allowed command patterns
 	allowedCommands, err := config.CompileAllowedCommands(cfg.UnboxexecAllowedCommands)
@@ -135,6 +135,7 @@ func runSandboxed(ctx context.Context, args []string, cfg *config.Config) error 
 		"ENCLAVE_SANDBOX=1",
 		"ENCLAVE_UNBOXEXEC_SOCK="+sockPath,
 		"ENCLAVE_CONFIG="+configDumpPath,
+		"ENCLAVE_PROFILE="+profilePath,
 	)
 	eCmd.Stdin = os.Stdin
 	eCmd.Stdout = os.Stdout

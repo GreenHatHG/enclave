@@ -95,24 +95,52 @@ func CommentedDefaultProfile() string {
 	return strings.Join(lines, "\n")
 }
 
-// BuildProfile creates a temporary file with the sandbox profile and returns
-// its path and a cleanup function.
-// If profileContent is non-empty, it is used as the profile.
+// BuildProfile creates the sandbox profile file and returns its path and a
+// cleanup function. The file is written to a deterministic path (sandbox.ProfilePath)
+// so that sandboxed processes can find it via the ENCLAVE_PROFILE environment
+// variable (see the `enclave profile` command).
+// If profileContent is non-empty, it is used as the profile; allowWrite paths
+// are appended at the end as a separate "allow file-write*" block (later rules
+// take precedence in SBPL, so this overrides earlier deny rules).
 // Otherwise, the built-in default profile is used.
-// allowWrite paths are applied only with the default profile: for each path,
-// a "(subpath (param "EXTRA_WRITE_N"))" line is inserted into the
-// "allow file-write*" block; the caller must pass matching "-D EXTRA_WRITE_N=<path>"
+// For each allowWrite path, a "(subpath (param "EXTRA_WRITE_N"))" line is
+// generated; the caller must pass matching "-D EXTRA_WRITE_N=<path>"
 // parameters to sandbox-exec.
-func BuildProfile(profileContent string, allowWrite []string) (profilePath string, cleanup func(), err error) {
+func BuildProfile(profileContent string, allowWrite []string, wd, home string) (profilePath string, cleanup func(), err error) {
 	content := profileContent
 	if content == "" {
 		content = buildDefaultProfile(allowWrite)
+	} else if len(allowWrite) > 0 {
+		var b strings.Builder
+		b.WriteString(content)
+		b.WriteString("\n;; Extra writable paths (from config [sandbox] allow_write / --allow-write)\n")
+		b.WriteString("(allow file-write*\n")
+		for i := range allowWrite {
+			fmt.Fprintf(&b, "    (subpath (param %q))\n", fmt.Sprintf("EXTRA_WRITE_%d", i))
+		}
+		b.WriteString(")\n")
+		content = b.String()
 	}
 
-	// Write to temporary file
-	tmpFile, err := os.CreateTemp("", "enclave-profile-*.sb")
+	// Append a comment block mapping sandbox-exec params to their actual values,
+	// so processes reading the profile file (e.g. via `enclave profile`) can see
+	// the resolved paths instead of bare param placeholders.
+	if params := paramValues(wd, home, allowWrite); len(params) > 0 {
+		var b strings.Builder
+		b.WriteString(content)
+		b.WriteString("\n;; Resolved parameter values (passed to sandbox-exec via -D)\n")
+		for k, v := range params {
+			fmt.Fprintf(&b, ";;   %-14s = %s\n", k, v)
+		}
+		content = b.String()
+	}
+
+	// Write to the profile file (deterministic path so the sandboxed process
+	// can inspect it via ENCLAVE_PROFILE)
+	profilePath = ProfilePath()
+	tmpFile, err := os.Create(profilePath)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to create temp file: %w", err)
+		return "", nil, fmt.Errorf("failed to create profile file %s: %w", profilePath, err)
 	}
 
 	if _, err := tmpFile.WriteString(content); err != nil {
@@ -127,4 +155,21 @@ func BuildProfile(profileContent string, allowWrite []string) (profilePath strin
 	}
 
 	return tmpFile.Name(), cleanup, nil
+}
+
+// paramValues returns the sandbox-exec -D parameter mapping for the given
+// workdir, home and extra writable paths. Comments are emitted only when at
+// least one extra write path is set (WORKDIR/HOME alone add little value).
+func paramValues(wd, home string, allowWrite []string) map[string]string {
+	if len(allowWrite) == 0 {
+		return nil
+	}
+	params := map[string]string{
+		"WORKDIR": wd,
+		"HOME":    home,
+	}
+	for i, p := range allowWrite {
+		params[fmt.Sprintf("EXTRA_WRITE_%d", i)] = p
+	}
+	return params
 }

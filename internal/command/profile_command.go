@@ -19,12 +19,27 @@ func ProfileCommand() *cli.Command {
 }
 
 func profileAction(ctx context.Context, cmd *cli.Command) error {
+	// Inside sandbox: ENCLAVE_PROFILE points to the actual evaluated profile
+	// file used by sandbox-exec at startup (including runtime-added entries
+	// such as --allow-write / [sandbox] allow_write paths).
+	if enclaveProfile := os.Getenv("ENCLAVE_PROFILE"); enclaveProfile != "" {
+		content, err := os.ReadFile(enclaveProfile)
+		if err != nil {
+			return fmt.Errorf("failed to read profile %s: %w", enclaveProfile, err)
+		}
+		_, err = cmd.Root().Writer.Write(content)
+		return err
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
-	profilePath, cleanup, err := sandbox.BuildProfile(cfg.SandboxProfile, cfg.SandboxAllowWrite)
+	wd, _ := os.Getwd()
+	home, _ := os.UserHomeDir()
+
+	profilePath, cleanup, err := sandbox.BuildProfile(cfg.SandboxProfile, cfg.SandboxAllowWrite, wd, home)
 	if err != nil {
 		return err
 	}

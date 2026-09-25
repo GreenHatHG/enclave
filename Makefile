@@ -53,6 +53,15 @@ build-release: ## Build release binary
 build-clean: ## Clean up build artifacts
 	@rm -rf .dev/build
 
+.PHONY: install
+install: ## Build and install to ~/.local/bin (re-sign to avoid AMFI SIGKILL)
+	@$(MAKE) --no-print-directory build
+	@mkdir -p $(HOME)/.local/bin
+	@rm -f $(HOME)/.local/bin/enclave
+	@cp .dev/build/dev/enclave $(HOME)/.local/bin/enclave
+	@codesign -s - -f $(HOME)/.local/bin/enclave 2>/dev/null || true
+	@echo "==> Installed to $(HOME)/.local/bin/enclave"
+
 
 # --------------------------------------------------------------------------------------
 # Testing, Formatting and etc.
